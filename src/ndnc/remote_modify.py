@@ -1,9 +1,11 @@
 import asyncio
+import threading
 import urllib.parse
 from typing import Optional
 from ndn.app import NDNApp
 from ndn.encoding import Name, InterestParam, BinaryStr, FormalName
 from ndn.security import KeychainDigest
+from ndn.types import InterestNack, InterestTimeout
 
 import logging
 logging.basicConfig(format='[{asctime}]{levelname}:{message}',
@@ -19,7 +21,10 @@ _TEMPERATURE_DATA: dict[str, float] = {
     '/data/sydney':  26.1,
 }
 
+# producer 用アプリ（ルート登録・データ返却）
 app = NDNApp(keychain=KeychainDigest())
+# consumer 用アプリ（ネストした関数呼び出しの引数をフェッチ）
+consumer_app = NDNApp(keychain=KeychainDigest())
 
 
 def decode_and_remove_metadata(name: FormalName) -> str:
@@ -67,13 +72,29 @@ def extract_first_level_args(name: FormalName) -> list[str]:
     return args
 
 
-def _fetch_arg(ndn_name: str) -> Optional[bytes]:
-    """引数の NDN 名に対応するデータをローカルデータストアから取得する。"""
+async def _fetch_arg(ndn_name: str) -> Optional[bytes]:
+    """引数の NDN 名を解決する。
+    ローカルデータストアを先に確認し、なければ consumer_app で Interest を発行する。
+    引数がネストした関数呼び出しの場合も再帰的に解決される。"""
     key = ndn_name.rstrip('/')
     if key in _TEMPERATURE_DATA:
         logging.info(f"[local] {key} = {_TEMPERATURE_DATA[key]}")
         return str(_TEMPERATURE_DATA[key]).encode()
-    logging.warning(f"Unknown data key: {key}")
+
+    # NDN ネットワーク経由で取得（ネストした関数呼び出しを含む）
+    logging.info(f"[fetch] {ndn_name}")
+    for attempt in range(3):
+        try:
+            _, _, content = await consumer_app.express_interest(
+                ndn_name, must_be_fresh=True, can_be_prefix=False, lifetime=10000
+            )
+            if content:
+                logging.info(f"[fetch] OK {ndn_name} (attempt {attempt + 1})")
+                return bytes(content)
+        except (InterestNack, InterestTimeout) as e:
+            logging.warning(f"[fetch] {ndn_name} attempt {attempt + 1} failed: {e}")
+        await asyncio.sleep(0.3)
+    logging.error(f"[fetch] GIVE-UP {ndn_name}")
     return None
 
 
@@ -103,7 +124,7 @@ def on_modify(name: FormalName, param: InterestParam, _app_param: Optional[Binar
         args = extract_first_level_args(name)
         logging.info(f"Args: {args}")
 
-        contents = [_fetch_arg(a) for a in args]
+        contents = await asyncio.gather(*[_fetch_arg(a) for a in args])
         if any(c is None for c in contents):
             app.put_data(name, content=b"error: failed to fetch argument", freshness_period=10000)
             return
@@ -126,7 +147,7 @@ def on_temperature_average(name: FormalName, param: InterestParam, _app_param: O
         args = extract_first_level_args(name)
         logging.info(f"Args: {args}")
 
-        contents = [_fetch_arg(a) for a in args]
+        contents = await asyncio.gather(*[_fetch_arg(a) for a in args])
         if any(c is None for c in contents):
             app.put_data(name, content=b"error: failed to fetch argument(s)", freshness_period=10000)
             return
@@ -143,10 +164,35 @@ def on_temperature_average(name: FormalName, param: InterestParam, _app_param: O
     asyncio.create_task(handler())
 
 
+@app.route('/format_temp')
+def on_format_temp(name: FormalName, param: InterestParam, _app_param: Optional[BinaryStr]):
+    async def handler():
+        logging.info(f"Interest: {Name.to_str(name)}")
+        if not is_function_request(name):
+            logging.warning("Not a function request")
+            return
+
+        args = extract_first_level_args(name)
+        logging.info(f"Args: {args}")
+
+        contents = await asyncio.gather(*[_fetch_arg(a) for a in args])
+        if any(c is None for c in contents):
+            app.put_data(name, content=b"error: failed to fetch argument", freshness_period=10000)
+            return
+
+        result = f"{contents[0].decode()}°C"
+        logging.info(f"Result: {result!r}")
+        app.put_data(name, content=result.encode(), freshness_period=10000)
+
+    asyncio.create_task(handler())
+
+
 if __name__ == '__main__':
+    threading.Thread(target=consumer_app.run_forever, daemon=True).start()
     print("Starting remote function node")
-    print(f"  /remote_modify       : /remote_modify/(<arg_ndn_name>)")
+    print(f"  /remote_modify       : /remote_modify/(<arg>)")
     print(f"  /temperature_average : /temperature_average/(<name1>, <name2>, ...)")
+    print(f"  /format_temp         : /format_temp/(<temp_value_or_func>)")
     print(f"  /data/*              : temperature data")
     print(f"  Available data: {list(_TEMPERATURE_DATA.keys())}")
     app.run_forever()

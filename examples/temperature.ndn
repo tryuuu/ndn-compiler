@@ -1,2 +1,2 @@
-let result = temperature_average("data/tokyo", "data/paris")
+let result = temperature_average("data/tokyo", "data/paris") 
 print result

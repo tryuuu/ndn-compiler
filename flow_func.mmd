@@ -8,20 +8,28 @@ sequenceDiagram
     Note over Interpreter, RemoteModify: Phase 2: AST解釈と実行（関数実行フェーズ）
 
     Env-->>Interpreter: "data" の値と NDN 名を返す
-    Note right of Interpreter: ③ let result = remote_modify(data)
+    Note right of Interpreter: ③ let result = format_temp(temperature_average(...))
 
     alt ローカル関数の場合
         Interpreter->>Interpreter: 関数をローカルで実行<br/>(例: modify)
     else リモート関数の場合: NDN-FCW+
-        Interpreter->>Interpreter: _to_ndn_name() で引数を Interest の形式に変換
-        Interpreter->>NFD: express_interest<br/>「/<func_name>/(<arg>, ...)」
-        NFD->>RemoteModify: Interest を転送
-        RemoteModify->>RemoteModify: is_function_request() で関数リクエストと判定
-        RemoteModify->>RemoteModify: extract_first_level_args() で関数名を抽出
-        loop 関数の引数に対して
-            RemoteModify->>RemoteModify: _TEMPERATURE_DATA からローカルで値を取得
+        Interpreter->>Interpreter: _to_ndn_name() で引数を再帰的に NDN 名へ変換<br/>→ /format_temp/(/temperature_average/(/data/tokyo, /data/paris))
+        Interpreter->>NFD: express_interest<br/>「/format_temp/(/temperature_average/(/data/tokyo, /data/paris))」
+        NFD->>RemoteModify: Interest を転送 → on_format_temp
+        RemoteModify->>RemoteModify: extract_first_level_args()<br/>→ ["/temperature_average/(/data/tokyo, /data/paris)"]
+        loop 引数に対して _fetch_arg()
+            alt ローカルデータの場合
+                RemoteModify->>RemoteModify: _TEMPERATURE_DATA からローカルで値を取得
+            else ネストした関数呼び出しの場合
+                RemoteModify->>NFD: consumer_app.express_interest<br/>「/temperature_average/(/data/tokyo, /data/paris)」
+                NFD->>RemoteModify: Interest を転送 → on_temperature_average
+                RemoteModify->>RemoteModify: extract_first_level_args()<br/>→ ["/data/tokyo", "/data/paris"]
+                RemoteModify->>RemoteModify: _TEMPERATURE_DATA からローカルで値を取得<br/>(22.5, 18.0 → 平均 20.2)
+                RemoteModify-->>NFD: Data (20.2) を返す
+                NFD-->>RemoteModify: Data Content (consumer_app が受信)
+            end
         end
-        RemoteModify->>RemoteModify: 関数を実行し結果を生成
+        RemoteModify->>RemoteModify: 関数を実行し結果を生成<br/>(例: 20.2°C)
         RemoteModify-->>NFD: Data を返す
         NFD-->>Interpreter: Data Content (受信)
     end

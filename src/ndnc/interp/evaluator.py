@@ -141,12 +141,11 @@ class Interpreter:
                 raise e
 
         if isinstance(expr, FunctionCall):
-            arg_values = [await self._eval_expr(a) for a in expr.args]
-
             if expr.name in _LOCAL_FUNCTIONS:
+                arg_values = [await self._eval_expr(a) for a in expr.args]
                 return str(arg_values[0]) + " from function"
             elif self.app is not None:
-                # Sidecar に倣い、引数は NDN 名として渡す
+                # リモート関数: 引数を NDN 名として渡す（ネストした関数呼び出しも再帰的に解決）
                 ndn_names = [self._to_ndn_name(a) for a in expr.args]
                 return await self._call_remote_function(expr.name, ndn_names)
             else:
@@ -185,6 +184,11 @@ class Interpreter:
         if isinstance(expr, StringLiteral):
             val = expr.value
             return val if val.startswith('/') else '/' + val
+        if isinstance(expr, FunctionCall):
+            if expr.name not in _LOCAL_FUNCTIONS:
+                ndn_names = [self._to_ndn_name(a) for a in expr.args]
+                args_str = ", ".join(ndn_names)
+                return "/" + expr.name + "/(" + args_str + ")"
         return str(expr)
 
     async def _call_remote_function(self, func_name: str, ndn_names: list[str]) -> str:

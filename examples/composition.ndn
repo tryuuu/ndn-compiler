@@ -1,0 +1,2 @@
+let result = format_temp(temperature_average("data/tokyo", "data/paris"))
+print result
