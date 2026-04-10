@@ -13,7 +13,7 @@ from ..parser.ast import (
 )
 
 # ローカルで処理できる関数名のセット
-_LOCAL_FUNCTIONS = {"modify", "format_height"}
+_LOCAL_FUNCTIONS = {"modify"}
 
 class Interpreter:
     def __init__(self):
@@ -22,7 +22,6 @@ class Interpreter:
         self.app: Optional[NDNApp] = None
         self._local_data: dict[str, str] = {
             '/data/ryu-local/': 'local data',
-            '/height/Mt.Fuji/': '3776',
         }
 
     def run(self, program: Program):
@@ -61,9 +60,10 @@ class Interpreter:
 
     def _has_interest(self, expr: Expr) -> bool:
         if isinstance(expr, ExpressInterest):
-            return True
+            # _local_data にあればネットワーク不要
+            return expr.name not in self._local_data
         if isinstance(expr, Variable):
-            return True
+            return False
         if isinstance(expr, FunctionCall):
             # ローカルにない関数はリモート呼び出しになるため NDNApp が必要
             return (expr.name not in _LOCAL_FUNCTIONS) or any(self._has_interest(a) for a in expr.args)
@@ -144,8 +144,6 @@ class Interpreter:
         if isinstance(expr, FunctionCall):
             if expr.name in _LOCAL_FUNCTIONS:
                 arg_values = [await self._eval_expr(a) for a in expr.args]
-                if expr.name == "format_height":
-                    return f"{arg_values[0]}m (Mt. Fuji, local)"
                 return str(arg_values[0]) + " from function"
             elif self.app is not None:
                 # リモート関数: 引数を NDN 名として渡す（ネストした関数呼び出しも再帰的に解決）

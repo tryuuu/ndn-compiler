@@ -1,3 +1,2 @@
-let height_m = interest "/height/Mt.Fuji/"
-let result = format_height(height_m)
-print result
+let height = interest "/height/Mt.Fuji/"
+print height

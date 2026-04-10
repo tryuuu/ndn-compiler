@@ -30,4 +30,11 @@ class Server:
             print(f"Sent Data: {Name.to_str(name)} -> NDN research")
         print("Server started. Listening for Interests on /data/nakazatolab...")
 
+        @self.app.route('/height/Mt.Fuji')
+        def on_height_mt_fuji(name, param, _app_param):
+            print(f"Received Interest: {Name.to_str(name)}")
+            self.app.put_data(name, content=b'3776m', freshness_period=10000)
+            print(f"Sent Data: {Name.to_str(name)} -> 3776m")
+        print("Server started. Listening for Interests on /height/Mt.Fuji...")
+
         self.app.run_forever()
