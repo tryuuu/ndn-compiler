@@ -13,7 +13,7 @@ from ..parser.ast import (
 )
 
 # ローカルで処理できる関数名のセット
-_LOCAL_FUNCTIONS = {"modify"}
+_LOCAL_FUNCTIONS = {"modify", "format_height"}
 
 class Interpreter:
     def __init__(self):
@@ -21,7 +21,8 @@ class Interpreter:
         self._env_origin: dict[str, str] = {}  # interest で取得した変数の NDN 名を追跡
         self.app: Optional[NDNApp] = None
         self._local_data: dict[str, str] = {
-            '/data/ryu-local/': 'local data'
+            '/data/ryu-local/': 'local data',
+            '/height/Mt.Fuji/': '3776',
         }
 
     def run(self, program: Program):
@@ -143,6 +144,8 @@ class Interpreter:
         if isinstance(expr, FunctionCall):
             if expr.name in _LOCAL_FUNCTIONS:
                 arg_values = [await self._eval_expr(a) for a in expr.args]
+                if expr.name == "format_height":
+                    return f"{arg_values[0]}m (Mt. Fuji, local)"
                 return str(arg_values[0]) + " from function"
             elif self.app is not None:
                 # リモート関数: 引数を NDN 名として渡す（ネストした関数呼び出しも再帰的に解決）
