@@ -8,7 +8,7 @@
     version = "0.0.1"
     description = "A DSL interpreter for transparent distributed execution over NDN"
     authors = [{ name = "tryuuu", email = "ryu23210@gmail.com" }]
-    readme = "README.md"
+    readme = "README.pypi.md"
     license = "MIT"
     license-files = ["LICENSE"]
     requires-python = ">=3.10"
