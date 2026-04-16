@@ -1,9 +1,57 @@
 Metadata-Version: 2.4
 Name: ndnc
 Version: 0.0.1
-Summary: Minimal DSL interpreter (print only, no-NDN)
-Author: tryuuu
+Summary: A DSL interpreter for transparent distributed execution over NDN
+Author-email: tryuuu <ryu23210@gmail.com>
+License-Expression: MIT
+Project-URL: Homepage, https://github.com/tryuuu/ndn-compiler
+Project-URL: Repository, https://github.com/tryuuu/ndn-compiler
+Keywords: ndn,dsl,distributed,icn
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Software Development :: Interpreters
 Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+License-File: LICENSE
 Requires-Dist: lark==1.1.9
 Requires-Dist: python-ndn
-Provides-Extra: server
+Dynamic: license-file
+
+# Description
+A minimal domain-specific language (DSL) interpreter for NDN-less syntax.  
+Currently supports several simple operations.
+# Setup
+## Start Environment (Docker)
+Build and start NFD and Producer containers.
+```bash
+make all
+```
+## Run examples
+Run the consumer in a container.
+```bash
+make run
+```
+
+ローカル関数（`modify`）の動作確認:
+```bash
+make run S=examples/hello.ndn
+# 出力例: local data from function
+```
+
+リモート関数（`remote_modify`）の動作確認:
+```bash
+make run S=examples/remote.ndn
+# 出力例: local data from remote_modify
+```
+
+`remote_modify` は NDN Interest `/remote_modify/<arg>` を発行し、`remote_modify` コンテナが処理を行う。`make all` 実行時に自動で起動する。
+## Check Logs
+```bash
+make logs
+```
+## Stop Environment
+```bash
+make down
+```
