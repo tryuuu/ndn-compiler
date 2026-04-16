@@ -22,16 +22,21 @@ services:
     command: /bin/sh -c "while [ ! -e /run/nfd/nfd.sock ]; do echo 'Waiting for NFD socket...'; sleep 1; done; ndnc serve"
     restart: always
 
-  remote_modify:
+  seed:
     build: .
-    container_name: remote_modify
+    container_name: seed
     depends_on:
       - nfd
     volumes:
       - nfd-run:/run/nfd
     environment:
       - NDN_CLIENT_TRANSPORT=unix:///run/nfd/nfd.sock
-    command: /bin/sh -c "while [ ! -e /run/nfd/nfd.sock ]; do echo 'Waiting for NFD socket...'; sleep 1; done; python3 /app/src/ndnc/remote_modify.py"
+    command: >
+      /bin/sh -c "
+      while [ ! -e /run/nfd/nfd.sock ]; do
+        echo 'Waiting for NFD socket...'; sleep 1;
+      done;
+      python3 -m seed.main /seed"
     restart: always
 
   consumer:
@@ -40,7 +45,7 @@ services:
     depends_on:
       - nfd
       - producer
-      - remote_modify
+      - seed
     volumes:
       - nfd-run:/run/nfd
     environment:

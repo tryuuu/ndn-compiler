@@ -1,0 +1,3 @@
+let data = interest "/data/ryu-local/"
+let result = remote_modify(data)
+print result

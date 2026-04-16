@@ -1,0 +1,5 @@
+{
+    "type": "CREATE",
+    "name": "/hello",
+    "content": "hello from seed"
+}

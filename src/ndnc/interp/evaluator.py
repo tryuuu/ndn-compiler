@@ -1,6 +1,8 @@
 from __future__ import annotations
 from typing import Any, Union, Optional
 import asyncio
+import contextlib
+import io
 import traceback
 import sys
 from ndn.app import NDNApp
@@ -13,7 +15,7 @@ from ..parser.ast import (
 )
 
 # ローカルで処理できる関数名のセット
-_LOCAL_FUNCTIONS = {"modify"}
+_LOCAL_FUNCTIONS = {"modify", "concat"}
 
 class Interpreter:
     def __init__(self, args: dict[str, str] | None = None):
@@ -168,6 +170,8 @@ class Interpreter:
                     meters_str = str(arg_values[0]).rstrip('m')
                     feet = round(float(meters_str) * 3.28084)
                     return f"{feet}ft"
+                if expr.name == "concat":
+                    return "".join(str(v) for v in arg_values)
                 return str(arg_values[0]) + " from function"
             elif self.app is not None:
                 # リモート関数: 引数を NDN 名として渡す（ネストした関数呼び出しも再帰的に解決）
@@ -239,3 +243,13 @@ class Interpreter:
         except Exception as e:
             print(f"Error calling remote function '{func_name}': {e}")
             raise
+
+    async def exec_in_context(self, program: Program, app: NDNApp) -> str:
+        """既存の NDNApp のコンテキスト内で .ndn プログラムを実行し、出力を文字列で返す。
+        seed サーバーなど、すでにイベントループが動いている環境から呼び出す用途向け。
+        通常の run() と異なり、新たなイベントループや NDNApp を起動しない。"""
+        self.app = app
+        buffer = io.StringIO()
+        with contextlib.redirect_stdout(buffer):
+            await self._exec_block(program)
+        return buffer.getvalue().strip()
