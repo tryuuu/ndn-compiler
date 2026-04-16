@@ -1,0 +1,54 @@
+name: Publish to PyPI
+
+on:
+  push:
+    branches: [release]
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Bump patch version
+        run: |
+          python - <<'EOF'
+          import re
+          with open("pyproject.toml") as f:
+              content = f.read()
+          match = re.search(r'version = "(\d+)\.(\d+)\.(\d+)"', content)
+          major, minor, patch = match.groups()
+          new_version = f"{major}.{minor}.{int(patch)+1}"
+          new_content = re.sub(r'version = "\d+\.\d+\.\d+"', f'version = "{new_version}"', content)
+          with open("pyproject.toml", "w") as f:
+              f.write(new_content)
+          print(f"Bumped to {new_version}")
+          EOF
+
+      - name: Commit version bump
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add pyproject.toml
+          git commit -m "chore: bump version [skip ci]"
+          git push
+
+      - name: Build
+        run: |
+          pip install build
+          python -m build
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          password: ${{ secrets.PYPI_API_TOKEN }}

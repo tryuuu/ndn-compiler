@@ -1,7 +1,9 @@
+LICENSE
 README.md
 pyproject.toml
 src/ndnc/__init__.py
 src/ndnc/cli.py
+src/ndnc/remote_modify.py
 src/ndnc/server.py
 src/ndnc.egg-info/PKG-INFO
 src/ndnc.egg-info/SOURCES.txt
@@ -13,4 +15,5 @@ src/ndnc/interp/__init__.py
 src/ndnc/interp/evaluator.py
 src/ndnc/parser/__init__.py
 src/ndnc/parser/ast.py
+src/ndnc/parser/grammar.lark
 src/ndnc/parser/parser.py
