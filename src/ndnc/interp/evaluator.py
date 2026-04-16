@@ -11,7 +11,7 @@ from ndn.security import KeychainDigest
 from ..parser.ast import (
 	Program, PrintStatement, Assignment, ExprStatement,
 	StringLiteral, NumberLiteral, Variable,
-	ExpressInterest, FunctionCall, Expr
+	ExpressInterest, FunctionCall, BinOp, UnaryOp, Expr
 )
 
 # ローカルで処理できる関数名のセット
@@ -180,6 +180,34 @@ class Interpreter:
             else:
                 raise RuntimeError(f"Unknown function: {expr.name}")
 
+        if isinstance(expr, BinOp):
+            left = await self._eval_expr(expr.left)
+            right = await self._eval_expr(expr.right)
+            left_n = float(left)
+            right_n = float(right)
+            if expr.op == "+":
+                result = left_n + right_n
+            elif expr.op == "-":
+                result = left_n - right_n
+            elif expr.op == "*":
+                result = left_n * right_n
+            elif expr.op == "/":
+                if right_n == 0:
+                    raise RuntimeError("Division by zero")
+                result = left_n / right_n
+            else:
+                raise RuntimeError(f"Unknown operator: {expr.op}")
+            # 整数に落とせるなら int で返す
+            return int(result) if result == int(result) else result
+
+        if isinstance(expr, UnaryOp):
+            val = await self._eval_expr(expr.operand)
+            if expr.op == "-":
+                n = float(val)
+                result = -n
+                return int(result) if result == int(result) else result
+            raise RuntimeError(f"Unknown unary operator: {expr.op}")
+
         raise RuntimeError(f"Unsupported expr: {expr}")
 
     def _register_local_data_routes(self):
@@ -215,6 +243,8 @@ class Interpreter:
             if isinstance(val, str):
                 return val if val.startswith('/') else '/' + val
             return str(val)
+        if isinstance(expr, NumberLiteral):
+            return str(expr.value)
         if isinstance(expr, StringLiteral):
             val = expr.value
             return val if val.startswith('/') else '/' + val

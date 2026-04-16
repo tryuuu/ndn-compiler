@@ -35,7 +35,18 @@ class FunctionCall:
 	name: str
 	args: List["Expr"]
 
-Expr = Union[StringLiteral, NumberLiteral, Variable, ExpressInterest, FunctionCall]
+@dataclass
+class BinOp:
+	op: str          # "+", "-", "*", "/"
+	left: "Expr"
+	right: "Expr"
+
+@dataclass
+class UnaryOp:
+	op: str          # "-"
+	operand: "Expr"
+
+Expr = Union[StringLiteral, NumberLiteral, Variable, ExpressInterest, FunctionCall, BinOp, UnaryOp]
 
 @dataclass
 class ExprStatement:

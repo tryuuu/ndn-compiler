@@ -7,13 +7,25 @@ start: statement+
          | PRINT expr                   -> print_stmt
          | expr                         -> expr_stmt
 
-// exprの種類を定義
-?expr: STRING                                    -> string_literal
-     | NUMBER                                    -> number_literal
-     | IDENTIFIER "(" expr ("," expr)* ")"       -> call_expr
-     | IDENTIFIER                                -> variable
-     | INTEREST STRING                           -> interest_expr
-     | INTEREST IDENTIFIER                       -> interest_var_expr
+// 優先順位: 低い順に定義（Lark LALR では上が低優先度）
+?expr: expr "+" term    -> add_expr
+     | expr "-" term    -> sub_expr
+     | term
+
+?term: term "*" factor  -> mul_expr
+     | term "/" factor  -> div_expr
+     | factor
+
+?factor: "-" factor                                          -> neg_expr
+       | atom
+
+?atom: STRING                                                -> string_literal
+     | NUMBER                                                -> number_literal
+     | IDENTIFIER "(" (expr ("," expr)*)? ")"               -> call_expr
+     | IDENTIFIER                                            -> variable
+     | INTEREST STRING                                       -> interest_expr
+     | INTEREST IDENTIFIER                                   -> interest_var_expr
+     | "(" expr ")"
 
 LET: "let"
 PRINT: "print"
