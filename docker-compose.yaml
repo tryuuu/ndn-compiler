@@ -23,7 +23,9 @@ services:
     restart: always
 
   seed:
-    build: .
+    build:
+      context: .
+      dockerfile: seed/Dockerfile
     container_name: seed
     depends_on:
       - nfd

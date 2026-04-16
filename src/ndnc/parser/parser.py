@@ -8,7 +8,7 @@ from lark import Lark, Transformer, v_args
 from .ast import (
 	PrintStatement, Assignment, ExprStatement,
 	StringLiteral, NumberLiteral, Variable,
-	ExpressInterest, FunctionCall, Program, Expr
+	ExpressInterest, FunctionCall, BinOp, UnaryOp, Program, Expr
 )
 
 
@@ -65,6 +65,26 @@ class _BuildAST(Transformer):
 		name = str(items[0])
 		args = list(items[1:])
 		return FunctionCall(name=name, args=args)
+
+	@v_args(inline=True)
+	def add_expr(self, left, right):
+		return BinOp(op="+", left=left, right=right)
+
+	@v_args(inline=True)
+	def sub_expr(self, left, right):
+		return BinOp(op="-", left=left, right=right)
+
+	@v_args(inline=True)
+	def mul_expr(self, left, right):
+		return BinOp(op="*", left=left, right=right)
+
+	@v_args(inline=True)
+	def div_expr(self, left, right):
+		return BinOp(op="/", left=left, right=right)
+
+	@v_args(inline=True)
+	def neg_expr(self, operand):
+		return UnaryOp(op="-", operand=operand)
 
 	def start(self, stmts):  # type: ignore[override]
 		if isinstance(stmts, list):
