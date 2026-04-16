@@ -1,5 +1,4 @@
 import asyncio
-import threading
 import urllib.parse
 from typing import Optional
 from ndn.app import NDNApp
@@ -21,10 +20,7 @@ _TEMPERATURE_DATA: dict[str, float] = {
     '/data/sydney':  26.1,
 }
 
-# producer 用アプリ（ルート登録・データ返却）
 app = NDNApp(keychain=KeychainDigest())
-# consumer 用アプリ（ネストした関数呼び出しの引数をフェッチ）
-consumer_app = NDNApp(keychain=KeychainDigest())
 
 
 def decode_and_remove_metadata(name: FormalName) -> str:
@@ -85,7 +81,7 @@ async def _fetch_arg(ndn_name: str) -> Optional[bytes]:
     logging.info(f"[fetch] {ndn_name}")
     for attempt in range(3):
         try:
-            _, _, content = await consumer_app.express_interest(
+            _, _, content = await app.express_interest(
                 ndn_name, must_be_fresh=True, can_be_prefix=False, lifetime=10000
             )
             if content:
@@ -187,12 +183,40 @@ def on_format_temp(name: FormalName, param: InterestParam, _app_param: Optional[
     asyncio.create_task(handler())
 
 
+@app.route('/m_to_feet')
+def on_m_to_feet(name: FormalName, param: InterestParam, _app_param: Optional[BinaryStr]):
+    async def handler():
+        logging.info(f"Interest: {Name.to_str(name)}")
+        if not is_function_request(name):
+            logging.warning("Not a function request")
+            return
+
+        args = extract_first_level_args(name)
+        logging.info(f"Args: {args}")
+
+        contents = await asyncio.gather(*[_fetch_arg(a) for a in args])
+        if any(c is None for c in contents):
+            app.put_data(name, content=b"error: failed to fetch argument", freshness_period=10000)
+            return
+
+        try:
+            meters_str = contents[0].decode().rstrip('m')
+            feet = round(float(meters_str) * 3.28084)
+            result = f"{feet}ft"
+            logging.info(f"Result: {result!r}")
+            app.put_data(name, content=result.encode(), freshness_period=10000)
+        except ValueError as e:
+            app.put_data(name, content=f"error: {e}".encode(), freshness_period=10000)
+
+    asyncio.create_task(handler())
+
+
 if __name__ == '__main__':
-    threading.Thread(target=consumer_app.run_forever, daemon=True).start()
     print("Starting remote function node")
     print(f"  /remote_modify       : /remote_modify/(<arg>)")
     print(f"  /temperature_average : /temperature_average/(<name1>, <name2>, ...)")
     print(f"  /format_temp         : /format_temp/(<temp_value_or_func>)")
+    print(f"  /m_to_feet           : /m_to_feet/(<meters_value>)")
     print(f"  /data/*              : temperature data")
     print(f"  Available data: {list(_TEMPERATURE_DATA.keys())}")
     app.run_forever()

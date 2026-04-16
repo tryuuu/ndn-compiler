@@ -13,6 +13,7 @@ start: statement+
      | IDENTIFIER "(" expr ("," expr)* ")"       -> call_expr
      | IDENTIFIER                                -> variable
      | INTEREST STRING                           -> interest_expr
+     | INTEREST IDENTIFIER                       -> interest_var_expr
 
 LET: "let"
 PRINT: "print"

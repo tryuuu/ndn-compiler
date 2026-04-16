@@ -28,6 +28,7 @@ class Variable:
 @dataclass
 class ExpressInterest:
 	name: str
+	name_is_var: bool = False  # True のとき name は変数名（実行時に env から解決する）
 
 @dataclass
 class FunctionCall:

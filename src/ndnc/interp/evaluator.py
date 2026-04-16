@@ -16,12 +16,16 @@ from ..parser.ast import (
 _LOCAL_FUNCTIONS = {"modify"}
 
 class Interpreter:
-    def __init__(self):
+    def __init__(self, args: dict[str, str] | None = None):
         self._env: dict[str, Any] = {}
         self._env_origin: dict[str, str] = {}  # interest で取得した変数の NDN 名を追跡
+        # 外部から渡された引数を env に事前登録（例: {"arg0": "/data/ryu-local/"}）
+        if args:
+            self._env.update(args)
         self.app: Optional[NDNApp] = None
         self._local_data: dict[str, str] = {
             '/data/ryu-local/': 'local data',
+            '/height/Mt.Fuji/': '3776m',
         }
 
     def run(self, program: Program):
@@ -60,6 +64,9 @@ class Interpreter:
 
     def _has_interest(self, expr: Expr) -> bool:
         if isinstance(expr, ExpressInterest):
+            if expr.name_is_var:
+                # 変数の値は実行時まで不明なのでネットワーク必要とみなす
+                return True
             # _local_data にあればネットワーク不要
             return expr.name not in self._local_data
         if isinstance(expr, Variable):
@@ -89,7 +96,12 @@ class Interpreter:
         self._env[node.name] = value
         # interest で取得した変数は NDN 名を記録しておく
         if isinstance(node.expr, ExpressInterest):
-            self._env_origin[node.name] = node.expr.name
+            if node.expr.name_is_var:
+                # 変数名から実際の NDN 名を解決して記録
+                ndn_name = self._env.get(node.expr.name, "")
+                self._env_origin[node.name] = str(ndn_name)
+            else:
+                self._env_origin[node.name] = node.expr.name
 
     async def _exec_expr_stmt(self, node: ExprStatement):
         value = await self._eval_expr(node.expr)
@@ -108,24 +120,32 @@ class Interpreter:
             return self._env[expr.name]
 
         if isinstance(expr, ExpressInterest):
-            if not expr.name.endswith('/'):
-                print(f"Error: Interest name must end with a trailing slash. Got: {expr.name}", file=sys.stderr)
-                print(f"Expected: {expr.name}/", file=sys.stderr)
+            # name_is_var のとき、変数から実際の NDN 名を解決する
+            if expr.name_is_var:
+                if expr.name not in self._env:
+                    raise RuntimeError(f"Variable '{expr.name}' is not defined (used in interest)")
+                ndn_name = str(self._env[expr.name])
+            else:
+                ndn_name = expr.name
+
+            if not ndn_name.endswith('/'):
+                print(f"Error: Interest name must end with a trailing slash. Got: {ndn_name}", file=sys.stderr)
+                print(f"Expected: {ndn_name}/", file=sys.stderr)
                 sys.exit(1)
 
-            if expr.name in self._local_data:
-                local_value = self._local_data[expr.name]
+            if ndn_name in self._local_data:
+                local_value = self._local_data[ndn_name]
                 try:
                     return int(local_value)
                 except ValueError:
                     return local_value
 
             if self.app is None:
-                return f"mock_{expr.name.replace('/', '_')}"
+                return f"mock_{ndn_name.replace('/', '_')}"
 
             try:
                 _, _, content = await self.app.express_interest(
-                    expr.name,
+                    ndn_name,
                     must_be_fresh=True,
                     can_be_prefix=True,
                     lifetime=6000
@@ -144,6 +164,10 @@ class Interpreter:
         if isinstance(expr, FunctionCall):
             if expr.name in _LOCAL_FUNCTIONS:
                 arg_values = [await self._eval_expr(a) for a in expr.args]
+                if expr.name == "m_to_feet":
+                    meters_str = str(arg_values[0]).rstrip('m')
+                    feet = round(float(meters_str) * 3.28084)
+                    return f"{feet}ft"
                 return str(arg_values[0]) + " from function"
             elif self.app is not None:
                 # リモート関数: 引数を NDN 名として渡す（ネストした関数呼び出しも再帰的に解決）
@@ -174,6 +198,11 @@ class Interpreter:
         - Variable → interest 由来なら記録済みの NDN 名、そうでなければ値を NDN 名として扱う
         - StringLiteral → 先頭 '/' を補完して NDN 名とする"""
         if isinstance(expr, ExpressInterest):
+            if expr.name_is_var:
+                if expr.name in self._env_origin:
+                    return self._env_origin[expr.name]
+                val = self._env.get(expr.name, "")
+                return str(val) if str(val).startswith('/') else '/' + str(val)
             return expr.name
         if isinstance(expr, Variable):
             if expr.name in self._env_origin:

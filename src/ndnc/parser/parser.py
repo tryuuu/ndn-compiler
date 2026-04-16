@@ -57,6 +57,10 @@ class _BuildAST(Transformer):
 			text = text[1:-1]
 		return ExpressInterest(name=text)
 
+	@v_args(inline=True)
+	def interest_var_expr(self, interest_token, identifier_token):  # type: ignore[override]
+		return ExpressInterest(name=str(identifier_token), name_is_var=True)
+
 	def call_expr(self, items):  # type: ignore[override]
 		name = str(items[0])
 		args = list(items[1:])
