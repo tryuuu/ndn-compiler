@@ -49,6 +49,9 @@ def _save_cache(func_name: str, code: str) -> None:
     path.write_text(json.dumps({"code": code, "cached_at": time.time()}))
 
 class Interpreter:
+    # プロセス内で共有するメモリキャッシュ（関数名 → .ndn コード）
+    _code_cache: dict[str, str] = {}
+
     def __init__(self, args: dict[str, str] | None = None):
         self._env: dict[str, Any] = {}
         self._env_origin: dict[str, str] = {}  # interest で取得した変数の NDN 名を追跡
@@ -287,19 +290,25 @@ class Interpreter:
         return str(expr)
 
     async def _call_remote_function(self, func_name: str, ndn_names: list[str]) -> str:
-        # キャッシュ確認: 有効な .ndn コードがあればローカルで実行
+        # 1. メモリキャッシュ確認（最速）
+        if func_name in Interpreter._code_cache:
+            return await self._run_cached(func_name, Interpreter._code_cache[func_name], ndn_names)
+
+        # 2. ファイルキャッシュ確認（TTL チェックあり）
         cached_code = _load_cache(func_name)
         if cached_code is not None:
+            Interpreter._code_cache[func_name] = cached_code  # メモリにも載せる
             return await self._run_cached(func_name, cached_code, ndn_names)
 
-        # キャッシュミス: seed から .ndn ソースを取得してキャッシュ保存
+        # 3. キャッシュミス: seed から .ndn ソースを取得
         code = await self._fetch_function_code(func_name)
         if code is not None:
-            _save_cache(func_name, code)
+            Interpreter._code_cache[func_name] = code  # メモリに保存
+            _save_cache(func_name, code)               # ファイルに保存
             print(f"[ndnc] cached '{func_name}' (~/.ndnc/cache/)", file=sys.stderr)
             return await self._run_cached(func_name, code, ndn_names)
 
-        # コード取得失敗: 従来通り seed に実行を委ねる
+        # 4. コード取得失敗: 従来通り seed に実行を委ねる
         args_str = ", ".join(ndn_names)
         interest_name = "/" + func_name + "/(" + args_str + ")"
         try:
