@@ -116,7 +116,15 @@ class SeedServer:
 
         if content_type == "ndn":
             def handler(int_name: FormalName, param: InterestParam, app_param: Optional[BinaryStr]):
-                asyncio.create_task(self._run_ndn(int_name, name))
+                decoded = Name.to_str(int_name)
+                if decoded.rstrip('/').endswith('/code'):
+                    # コード取得リクエスト: .ndn ソースをそのまま返す
+                    entry = self.server_map.get(name)
+                    src = entry[0].encode() if entry else b""
+                    self.app.put_data(int_name, content=src, freshness_period=0)
+                    logger.info(f"Returned source for {name!r}")
+                else:
+                    asyncio.create_task(self._run_ndn(int_name, name))
         else:
             def handler(int_name: FormalName, param: InterestParam, app_param: Optional[BinaryStr]):
                 logger.info(f"Interest for {Name.to_str(int_name)}")
