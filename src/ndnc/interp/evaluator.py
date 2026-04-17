@@ -18,7 +18,7 @@ from ..parser.ast import (
 )
 
 # ローカルで処理できる関数名のセット
-_LOCAL_FUNCTIONS = {"modify", "concat"}
+_LOCAL_FUNCTIONS = {"modify", "concat", "m_to_feet"}
 
 _CACHE_DIR = Path.home() / ".ndnc" / "cache"
 _CACHE_TTL = 300  # seconds
@@ -90,9 +90,7 @@ class Interpreter:
 
                 self.app.run_forever(after_start=after_start())
 
-            except Exception as e:
-                print(f"DEBUG: NDN Connection/Execution Failed: {e}")
-                traceback.print_exc()
+            except Exception:
                 self.app = None
                 asyncio.run(self._exec_block(program))
         else:
@@ -164,10 +162,10 @@ class Interpreter:
             else:
                 ndn_name = expr.name
 
+            if not ndn_name.startswith('/'):
+                ndn_name = '/' + ndn_name
             if not ndn_name.endswith('/'):
-                print(f"Error: Interest name must end with a trailing slash. Got: {ndn_name}", file=sys.stderr)
-                print(f"Expected: {ndn_name}/", file=sys.stderr)
-                sys.exit(1)
+                ndn_name = ndn_name + '/'
 
             if ndn_name in self._local_data:
                 local_value = self._local_data[ndn_name]
