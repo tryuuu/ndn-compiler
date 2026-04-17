@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: ndnc
-Version: 0.0.1
+Version: 0.0.2
 Summary: A DSL interpreter for transparent distributed execution over NDN
 Author-email: tryuuu <ryu23210@gmail.com>
 License-Expression: MIT
@@ -19,39 +19,47 @@ Requires-Dist: lark==1.1.9
 Requires-Dist: python-ndn
 Dynamic: license-file
 
-# Description
-A minimal domain-specific language (DSL) interpreter for NDN-less syntax.  
-Currently supports several simple operations.
-# Setup
-## Start Environment (Docker)
-Build and start NFD and Producer containers.
+# ndnc
+
+A DSL interpreter for transparent distributed execution over NDN (Named Data Networking).
+
+Write code without thinking about where it runs — local or remote. The system handles it.
+
+## Installation
+
 ```bash
-make all
-```
-## Run examples
-Run the consumer in a container.
-```bash
-make run
+pip install ndnc
 ```
 
-ローカル関数（`modify`）の動作確認:
+## Usage
+
+### Run a `.ndn` script
+
 ```bash
-make run S=examples/hello.ndn
-# 出力例: local data from function
+ndnc run path/to/script.ndn
 ```
 
-リモート関数（`remote_modify`）の動作確認:
+### Run with arguments
+
 ```bash
-make run S=examples/remote.ndn
-# 出力例: local data from remote_modify
+ndnc run path/to/script.ndn arg0 arg1
 ```
 
-`remote_modify` は NDN Interest `/remote_modify/<arg>` を発行し、`remote_modify` コンテナが処理を行う。`make all` 実行時に自動で起動する。
-## Check Logs
+### Start NDN server (producer)
+
 ```bash
-make logs
+ndnc serve
 ```
-## Stop Environment
-```bash
-make down
+
+## Example
+
+```ndn
+let data = interest "nakazatolab/data"
+let result = func modify(data)
+print result
 ```
+
+## Requirements
+
+- Python 3.10+
+- [python-ndn](https://python-ndn.readthedocs.io/)
