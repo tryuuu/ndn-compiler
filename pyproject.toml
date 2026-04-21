@@ -5,7 +5,7 @@
 
 [project]
     name = "ndnc"
-    version = "0.0.5"
+    version = "0.0.6"
     description = "A DSL interpreter for transparent distributed execution over NDN"
     authors = [{ name = "tryuuu", email = "ryu23210@gmail.com" }]
     readme = "README.pypi.md"
