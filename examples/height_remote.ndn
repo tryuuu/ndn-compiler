@@ -1,3 +1,0 @@
-let height_m = interest "/height/Mt.Fuji/"
-let result = remote_format_height(height_m)
-print result

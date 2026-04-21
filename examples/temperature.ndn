@@ -1,2 +1,0 @@
-let result = temperature_average("data/tokyo", "data/paris") 
-print result

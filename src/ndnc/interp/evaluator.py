@@ -18,7 +18,7 @@ from ..parser.ast import (
 )
 
 # ローカルで処理できる関数名のセット
-_LOCAL_FUNCTIONS = {"modify", "concat", "m_to_feet"}
+_LOCAL_FUNCTIONS = {"concat"}
 
 _CACHE_DIR = Path.home() / ".ndnc" / "cache"
 _CACHE_TTL = 300  # seconds
@@ -48,20 +48,46 @@ def _save_cache(func_name: str, code: str) -> None:
     path = _cache_path(func_name)
     path.write_text(json.dumps({"code": code, "cached_at": time.time()}))
 
+
+def _interest_cache_path(ndn_name: str) -> Path:
+    safe = "interest_" + ndn_name.strip("/").replace("/", "_")
+    return _CACHE_DIR / f"{safe}.json"
+
+
+def _load_interest_cache(ndn_name: str) -> Optional[Any]:
+    """interest キャッシュが有効なら値を返す。期限切れ・未存在なら None。"""
+    path = _interest_cache_path(ndn_name)
+    if not path.exists():
+        return None
+    try:
+        data = json.loads(path.read_text())
+        if time.time() - data["cached_at"] > _CACHE_TTL:
+            return None
+        return data["value"]
+    except Exception:
+        return None
+
+
+def _save_interest_cache(ndn_name: str, value: Any) -> None:
+    _CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    path = _interest_cache_path(ndn_name)
+    path.write_text(json.dumps({"value": value, "cached_at": time.time()}))
+
 class Interpreter:
     # プロセス内で共有するメモリキャッシュ（関数名 → .ndn コード）
     _code_cache: dict[str, str] = {}
+    # プロセス内で共有するメモリキャッシュ（NDN 名 → 取得済みデータ）
+    _interest_cache: dict[str, Any] = {}
 
     def __init__(self, args: dict[str, str] | None = None):
         self._env: dict[str, Any] = {}
         self._env_origin: dict[str, str] = {}  # interest で取得した変数の NDN 名を追跡
-        # 外部から渡された引数を env に事前登録（例: {"arg0": "/data/ryu-local/"}）
+        # 外部から渡された引数を env に事前登録（例: {"arg0": "/data/local/"}）
         if args:
             self._env.update(args)
         self.app: Optional[NDNApp] = None
         self._local_data: dict[str, str] = {
-            '/data/ryu-local/': 'local data',
-            '/height/Mt.Fuji/': '3776m',
+            '/data/local/': 'data from local',
         }
 
     def run(self, program: Program):
@@ -177,6 +203,17 @@ class Interpreter:
             if self.app is None:
                 return f"mock_{ndn_name.replace('/', '_')}"
 
+            # 1. メモリキャッシュ確認
+            if ndn_name in Interpreter._interest_cache:
+                return Interpreter._interest_cache[ndn_name]
+
+            # 2. ファイルキャッシュ確認
+            file_cached = _load_interest_cache(ndn_name)
+            if file_cached is not None:
+                Interpreter._interest_cache[ndn_name] = file_cached
+                return file_cached
+
+            # 3. ネットワーク取得
             try:
                 _, _, content = await self.app.express_interest(
                     ndn_name,
@@ -188,9 +225,13 @@ class Interpreter:
                     return ""
                 text = bytes(content).decode('utf-8').strip()
                 try:
-                    return int(text)
+                    value = int(text)
                 except ValueError:
-                    return text
+                    value = text
+                Interpreter._interest_cache[ndn_name] = value
+                _save_interest_cache(ndn_name, value)
+                print(f"[ndnc] cached interest '{ndn_name}' (~/.ndnc/cache/)", file=sys.stderr)
+                return value
             except Exception as e:
                 print(f"Error expressing interest for {expr.name}: {e}")
                 raise e
@@ -198,13 +239,8 @@ class Interpreter:
         if isinstance(expr, FunctionCall):
             if expr.name in _LOCAL_FUNCTIONS:
                 arg_values = [await self._eval_expr(a) for a in expr.args]
-                if expr.name == "m_to_feet":
-                    meters_str = str(arg_values[0]).rstrip('m')
-                    feet = round(float(meters_str) * 3.28084)
-                    return f"{feet}ft"
                 if expr.name == "concat":
                     return "".join(str(v) for v in arg_values)
-                return str(arg_values[0]) + " from function"
             elif self.app is not None:
                 # リモート関数: 引数を NDN 名として渡す（ネストした関数呼び出しも再帰的に解決）
                 ndn_names = [self._to_ndn_name(a) for a in expr.args]

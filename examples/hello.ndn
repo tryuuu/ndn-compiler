@@ -1,3 +1,0 @@
-let data = interest "/data/ryu-local/"
-let result = modify(data) 
-print result
