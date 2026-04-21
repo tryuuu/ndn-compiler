@@ -34,3 +34,25 @@ make logs
 ```bash
 make down
 ```
+
+# Seed Server
+
+The seed server listens on the `/seed` prefix and accepts NDN function registration and deletion.
+
+## Register a function
+
+Run `setup_seed.py` to register a `.ndn` function to the seed server.
+
+```bash
+python3 setup_seed.py
+# example output: [setup] created: /remote_modify
+```
+
+After registration, sending an Interest to `/remote_modify/(<arg>)` executes the `.ndn` code.
+
+## content_type
+
+| value | behavior |
+|---|---|
+| `ndn` | executes `.ndn` code on each Interest and returns the result |
+| `static` | returns the `content` string as-is |
