@@ -48,9 +48,36 @@ def _save_cache(func_name: str, code: str) -> None:
     path = _cache_path(func_name)
     path.write_text(json.dumps({"code": code, "cached_at": time.time()}))
 
+
+def _interest_cache_path(ndn_name: str) -> Path:
+    safe = "interest_" + ndn_name.strip("/").replace("/", "_")
+    return _CACHE_DIR / f"{safe}.json"
+
+
+def _load_interest_cache(ndn_name: str) -> Optional[Any]:
+    """interest キャッシュが有効なら値を返す。期限切れ・未存在なら None。"""
+    path = _interest_cache_path(ndn_name)
+    if not path.exists():
+        return None
+    try:
+        data = json.loads(path.read_text())
+        if time.time() - data["cached_at"] > _CACHE_TTL:
+            return None
+        return data["value"]
+    except Exception:
+        return None
+
+
+def _save_interest_cache(ndn_name: str, value: Any) -> None:
+    _CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    path = _interest_cache_path(ndn_name)
+    path.write_text(json.dumps({"value": value, "cached_at": time.time()}))
+
 class Interpreter:
     # プロセス内で共有するメモリキャッシュ（関数名 → .ndn コード）
     _code_cache: dict[str, str] = {}
+    # プロセス内で共有するメモリキャッシュ（NDN 名 → 取得済みデータ）
+    _interest_cache: dict[str, Any] = {}
 
     def __init__(self, args: dict[str, str] | None = None):
         self._env: dict[str, Any] = {}
@@ -177,6 +204,17 @@ class Interpreter:
             if self.app is None:
                 return f"mock_{ndn_name.replace('/', '_')}"
 
+            # 1. メモリキャッシュ確認
+            if ndn_name in Interpreter._interest_cache:
+                return Interpreter._interest_cache[ndn_name]
+
+            # 2. ファイルキャッシュ確認
+            file_cached = _load_interest_cache(ndn_name)
+            if file_cached is not None:
+                Interpreter._interest_cache[ndn_name] = file_cached
+                return file_cached
+
+            # 3. ネットワーク取得
             try:
                 _, _, content = await self.app.express_interest(
                     ndn_name,
@@ -188,9 +226,13 @@ class Interpreter:
                     return ""
                 text = bytes(content).decode('utf-8').strip()
                 try:
-                    return int(text)
+                    value = int(text)
                 except ValueError:
-                    return text
+                    value = text
+                Interpreter._interest_cache[ndn_name] = value
+                _save_interest_cache(ndn_name, value)
+                print(f"[ndnc] cached interest '{ndn_name}' (~/.ndnc/cache/)", file=sys.stderr)
+                return value
             except Exception as e:
                 print(f"Error expressing interest for {expr.name}: {e}")
                 raise e
