@@ -1,4 +1,4 @@
-S ?= examples/hello.ndn
+S ?= examples/remote_modify.ndn
 
 .PHONY: all build up down run logs
 

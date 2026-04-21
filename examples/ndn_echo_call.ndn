@@ -1,3 +1,0 @@
-let data = interest "/data/ryu-local/"
-let result = ndn_echo(data)
-print result

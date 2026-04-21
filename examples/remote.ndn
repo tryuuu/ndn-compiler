@@ -1,3 +1,2 @@
-let data = interest "/data/ryu-local/"
-let result = remote_modify(data)
-print result
+let data = interest "data/remote"
+print data

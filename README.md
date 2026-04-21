@@ -3,7 +3,7 @@ A minimal domain-specific language (DSL) interpreter for NDN-less syntax.
 Currently supports several simple operations.
 # Setup
 ## Start Environment (Docker)
-Build and start NFD and Producer containers.
+Build and start all containers (NFD, Producer, Seed).
 ```bash
 make all
 ```
@@ -13,19 +13,24 @@ Run the consumer in a container.
 make run
 ```
 
-Run a local function (`modify`):
+Fetch local data:
 ```bash
-make run S=examples/hello.ndn
-# example output: local data from function
+make run S=examples/local.ndn
+# example output: data from local
 ```
 
-Run a remote function (`remote_modify`):
+Fetch remote data via NFD:
 ```bash
 make run S=examples/remote.ndn
-# example output: local data from remote_modify
+# example output: data from remote
 ```
 
-`remote_modify` sends an NDN Interest `/remote_modify/<arg>` and the seed server handles the execution. It is automatically started when running `make all`.
+Call a remote function (`remote_modify`) registered on the seed server:
+```bash
+make run S=examples/remote_modify.ndn
+# example output: data from local modified
+```
+
 ## Check Logs
 ```bash
 make logs
@@ -39,16 +44,17 @@ make down
 
 The seed server listens on the `/seed` prefix and accepts NDN function registration and deletion.
 
-## Register a function
-
-Run `setup_seed.py` to register a `.ndn` function to the seed server.
+## Register functions
 
 ```bash
-python3 setup_seed.py
-# example output: [setup] created: /remote_modify
+python3 setup_seed_modify.py
+# example output: created: /remote_modify
+
+python3 setup_seed_feet.py
+# example output: created: /m_to_feet
 ```
 
-After registration, sending an Interest to `/remote_modify/(<arg>)` executes the `.ndn` code.
+After registration, sending an Interest to `/remote_modify/(<arg>)` or `/m_to_feet/(<arg>)` executes the `.ndn` code on the seed server.
 
 ## content_type
 

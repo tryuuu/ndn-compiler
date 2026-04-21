@@ -18,7 +18,7 @@ from ..parser.ast import (
 )
 
 # ローカルで処理できる関数名のセット
-_LOCAL_FUNCTIONS = {"modify", "concat", "m_to_feet"}
+_LOCAL_FUNCTIONS = {"concat"}
 
 _CACHE_DIR = Path.home() / ".ndnc" / "cache"
 _CACHE_TTL = 300  # seconds
@@ -82,13 +82,12 @@ class Interpreter:
     def __init__(self, args: dict[str, str] | None = None):
         self._env: dict[str, Any] = {}
         self._env_origin: dict[str, str] = {}  # interest で取得した変数の NDN 名を追跡
-        # 外部から渡された引数を env に事前登録（例: {"arg0": "/data/ryu-local/"}）
+        # 外部から渡された引数を env に事前登録（例: {"arg0": "/data/local/"}）
         if args:
             self._env.update(args)
         self.app: Optional[NDNApp] = None
         self._local_data: dict[str, str] = {
-            '/data/ryu-local/': 'local data',
-            '/height/Mt.Fuji/': '3776m',
+            '/data/local/': 'data from local',
         }
 
     def run(self, program: Program):
@@ -240,13 +239,8 @@ class Interpreter:
         if isinstance(expr, FunctionCall):
             if expr.name in _LOCAL_FUNCTIONS:
                 arg_values = [await self._eval_expr(a) for a in expr.args]
-                if expr.name == "m_to_feet":
-                    meters_str = str(arg_values[0]).rstrip('m')
-                    feet = round(float(meters_str) * 3.28084)
-                    return f"{feet}ft"
                 if expr.name == "concat":
                     return "".join(str(v) for v in arg_values)
-                return str(arg_values[0]) + " from function"
             elif self.app is not None:
                 # リモート関数: 引数を NDN 名として渡す（ネストした関数呼び出しも再帰的に解決）
                 ndn_names = [self._to_ndn_name(a) for a in expr.args]

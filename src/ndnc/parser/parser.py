@@ -43,7 +43,8 @@ class _BuildAST(Transformer):
 
 	@v_args(inline=True)
 	def number_literal(self, num_token):  # type: ignore[override]
-		return NumberLiteral(value=int(str(num_token)))
+		s = str(num_token)
+		return NumberLiteral(value=int(s) if '.' not in s else float(s))
 
 	@v_args(inline=True)
 	def variable(self, identifier_token):  # type: ignore[override]
