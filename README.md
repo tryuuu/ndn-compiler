@@ -13,19 +13,19 @@ Run the consumer in a container.
 make run
 ```
 
-ローカル関数（`modify`）の動作確認:
+Run a local function (`modify`):
 ```bash
 make run S=examples/hello.ndn
-# 出力例: local data from function
+# example output: local data from function
 ```
 
-リモート関数（`remote_modify`）の動作確認:
+Run a remote function (`remote_modify`):
 ```bash
 make run S=examples/remote.ndn
-# 出力例: local data from remote_modify
+# example output: local data from remote_modify
 ```
 
-`remote_modify` は NDN Interest `/remote_modify/<arg>` を発行し、`remote_modify` コンテナが処理を行う。`make all` 実行時に自動で起動する。
+`remote_modify` sends an NDN Interest `/remote_modify/<arg>` and the seed server handles the execution. It is automatically started when running `make all`.
 ## Check Logs
 ```bash
 make logs
